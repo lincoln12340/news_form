@@ -237,7 +237,6 @@ if submitted:
     assistant = assistant1(vector_store_id,company)
 
 
-    st.write(news_data)
 
     if news_data or pdf_data:
         payload = {
