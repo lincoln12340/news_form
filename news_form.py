@@ -227,26 +227,43 @@ def assistant1(vector_store_id,company):
 with st.form("search_form"):
     company = st.text_input("Company Name", "Avidity Biosciences")
     product = st.text_input("Product Name", "AOC 1001")
-    year = st.text_input("Target Year", "2025")
+    years = st.multiselect(
+        "Target Year(s)",
+        options=[2025, 2026, 2027, 2028, 2029, 2030],
+        default=[2025]
+    )
+
     submitted = st.form_submit_button("Generate")
 
 if submitted:
-    news_data, pdf_data = search_and_scrape(company, product, year)
-    vector_store_id = pdf_data[0]["vector store"]
-    
-    assistant = assistant1(vector_store_id,company)
+    if not years:
+        st.warning("Please select at least one year.")
+    else:
+        for year in years:
+            news_data, pdf_data = search_and_scrape(company, product, str(year))
 
+            vector_store_id = None
+            assistant = None
+            if pdf_data:
+                # grab first vector store id from the year’s PDFs
+                vector_store_id = pdf_data[0].get("vector store")
+                if vector_store_id:
+                    assistant = assistant1(vector_store_id, company)
 
+            if news_data or pdf_data:
+                payload = {
+                    "company": company,
+                    "product": product,
+                    "year": year,  # single year per payload
+                    "press_releases": news_data,
+                    "pdf_uploads": pdf_data,
+                    "assistant": getattr(assistant, "id", None),
+                    "vector store id": vector_store_id
+                }
+                post_to_webhook(payload)
+                st.write(f"✅ Processed year {year}")
+            else:
+                st.info(f"ℹ️ {year}: no results to post.")
+                
+        st.success("🎉 All selected years have been processed!")
 
-    if news_data or pdf_data:
-        payload = {
-            "company": company,
-            "product": product,
-            "year": year,
-            "press_releases": news_data,
-            "pdf_uploads": pdf_data,
-            "assistant":assistant.id,
-            "vector store id": vector_store_id
-        }
-        post_to_webhook(payload)
-        st.success("\u2705 Done! Check back on 'Universe Data' in 1–2 minutes.")
