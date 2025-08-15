@@ -134,7 +134,7 @@ def post_to_webhook(data):
         st.error(f"\u274c Webhook error: {e}")
 
 # UI
-st.markdown('<div class="title">\U0001F4F0 Press Release Scraper</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">\U0001F4F0 News Universe</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Find news & PDFs, upload to OpenAI, then post to your webhook</div>', unsafe_allow_html=True)
 st.markdown("---")
 
