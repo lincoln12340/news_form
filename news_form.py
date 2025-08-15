@@ -135,7 +135,7 @@ def post_to_webhook(data):
 
 # UI
 st.markdown('<div class="title">\U0001F4F0 News Universe</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Find news & PDFs, upload to OpenAI, then post to your webhook</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Finds news & PDFs, analyses then extracts most recent updates</div>', unsafe_allow_html=True)
 st.markdown("---")
 
 def assistant1(vector_store_id,company):
