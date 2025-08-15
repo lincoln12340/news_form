@@ -18,7 +18,7 @@ OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Set page config
-st.set_page_config(page_title="Press Release Scraper", page_icon="📰", layout="centered")
+st.set_page_config(page_title="Universe Analyser", page_icon="📰", layout="centered")
 
 # UI Styling
 st.markdown("""
