@@ -6,6 +6,8 @@ import tempfile
 from serpapi import GoogleSearch
 from urllib.parse import urlparse
 from openai import OpenAI
+from pyairtable import Api
+
 
 
 # Constants
@@ -13,12 +15,16 @@ WEBHOOK_URL =  st.secrets["WEBHOOK_URL"]
 DIFFBOT_TOKEN = st.secrets["DIFFBOT_TOKEN"]
 SERPAPI_KEY =  st.secrets["SERPAPI_KEY"]
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+PAT = st.secrets["PAT"]
+BASE_ID = st.secrets["BASE_ID"]
+TABLE_NAME = st.secrets["TABLE_NAME"]
+FIELD_ID = st.secrets["FIELD_ID"]
 
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Set page config
-st.set_page_config(page_title="Universe Analyser", page_icon="📰", layout="centered")
+st.set_page_config(page_title="Press Release Scraper", page_icon="📰", layout="centered")
 
 # UI Styling
 st.markdown("""
@@ -134,12 +140,13 @@ def post_to_webhook(data):
         st.error(f"\u274c Webhook error: {e}")
 
 # UI
-st.markdown('<div class="title">\U0001F4F0 News Universe</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Finds news & PDFs, analyses then extracts most recent updates</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">\U0001F4F0 Press Release Scraper</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Find news & PDFs, upload to OpenAI, then post to your webhook</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-def assistant1(vector_store_id,company):
-    instructions = """ You are an expert biotechnology researcher focused on pharmaceutical company developments. Your task is to analyze press release content stored in a vector store and extract the most relevant product-related news, product-related milestones, or product-related clinical trial updates for a specific year.
+def assistant1(vector_store_id,company,year):
+    choices = get_single_select_choices()
+    instructions = f""" You are an expert biotechnology researcher focused on pharmaceutical company developments. Your task is to analyze press release content stored in a vector store and extract the most relevant product-related news, product-related milestones, or product-related clinical trial updates for a specific year.
 
     You will receive:
 
@@ -149,13 +156,13 @@ def assistant1(vector_store_id,company):
 
     Only analyze content from files found in the vector store.
 
-    For each te, determine whether it meets all of the following conditions:
+    For each file, determine whether it meets all of the following conditions:
 
     Clearly mentions the specified product.
 
     Includes a timeframe (quarter, half-year, or specific date).
 
-    Contains a milestone or event expected to happen in the target year, even if the document is published earlier or later.
+    Contains a milestone or event expected to happen in the year of {year}, even if the document is published earlier or later.
 
     For each qualifying file, use the file_name to match it with its corresponding metadata entry. Then, extract and return the following structured JSON:
 
@@ -167,7 +174,11 @@ def assistant1(vector_store_id,company):
 
     product: Product name or code.
 
-    news: A specific and concise summary of the milestone or clinical update.
+    news: A specific and concise summary of the milestone or clinical update that relates to {year}.
+
+    snippet: Very short (3–5 word) summary of the news in relation to the year {year}
+
+    disease: Only one disease group which {product} impacts from the analysed pdf
 
     timeframe: One or more of Q1, Q2, Q3, Q4, or ranges like Q1,Q2.
 
@@ -199,12 +210,12 @@ def assistant1(vector_store_id,company):
     Output:
     Return the final output as valid JSON only — no markdown or explanations.
 
-    If no valid entries are found, return:
-
-    {
+    If no valid entries are found, return: 
+    
+    {{
     "results": [],
     "message": "No upcoming milestones or events found in the PDFs for [PRODUCT] by [COMPANY] in [TARGET_YEAR]."
-    }
+    }}
 
     All extracted information must be factually grounded in the text and tied to a milestone or event expected in the target year."""
 
@@ -220,6 +231,21 @@ def assistant1(vector_store_id,company):
    
     return assistant
 
+def get_single_select_choices():
+    api = Api(PAT)
+    base = api.base(BASE_ID)
+    table = base.table(TABLE_NAME)
+
+    # Fetch the table schema
+    ts = table.schema()                 # -> TableSchema
+
+    # Get the field schema by id (or by name)
+    field_schema = ts.field(FIELD_ID)   # accepts id or field name
+
+    # For Single select fields, choices live under options.choices
+    choices = [c.name for c in field_schema.options.choices]
+    return choices      
+
 
 
 
@@ -227,6 +253,7 @@ def assistant1(vector_store_id,company):
 with st.form("search_form"):
     company = st.text_input("Company Name", "Avidity Biosciences")
     product = st.text_input("Product Name", "AOC 1001")
+    ticker = st.text_input("Ticker Symbol", "RNA")
     years = st.multiselect(
         "Target Year(s)",
         options=[2025, 2026, 2027, 2028, 2029, 2030],
@@ -248,17 +275,20 @@ if submitted:
                 # grab first vector store id from the year’s PDFs
                 vector_store_id = pdf_data[0].get("vector store")
                 if vector_store_id:
-                    assistant = assistant1(vector_store_id, company)
+                    assistant = assistant1(vector_store_id, company, str(year))
 
             if news_data or pdf_data:
+                choices = get_single_select_choices()
                 payload = {
                     "company": company,
                     "product": product,
+                    "ticker": ticker,
                     "year": year,  # single year per payload
                     "press_releases": news_data,
                     "pdf_uploads": pdf_data,
                     "assistant": getattr(assistant, "id", None),
-                    "vector store id": vector_store_id
+                    "vector store id": vector_store_id,
+                    "single select choices": choices
                 }
                 post_to_webhook(payload)
                 st.write(f"✅ Processed year {year}")
@@ -266,4 +296,5 @@ if submitted:
                 st.info(f"ℹ️ {year}: no results to post.")
                 
         st.success("🎉 All selected years have been processed!")
+
 
